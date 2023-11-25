@@ -105,6 +105,16 @@ def ReadFunction(queue):
         queueArraynode6.put(ser_bytes)
 
 if __name__ == "__main__":
+    ## Set the portName to the appropriate serial port on macOS
+    # portName = "/dev/tty.usbserial-XXXXXXXX"  # Replace with the actual device name
+    # baudrate = 921600
+    # ser = serial.Serial(portName, baudrate, timeout=None)
+    # ser.flushInput()
+    
+    ## You can find the list of connected serial devices using the following command in the terminal:
+    # ls /dev/tty.*
+    
+    ## Set the portName to the appropriate serial port on macOS
     portName = "COM6"
     baudrate = 921600
     ser = serial.Serial(portName, baudrate,timeout = None)
