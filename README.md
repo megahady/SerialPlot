@@ -15,6 +15,7 @@ Compatible with **Windows** and **macOS**.
 | **Multi-channel display** | 6 simultaneous channels (CH1–CH6) on one graph |
 | **Arduino auto-detection** | COM port combobox tags Arduino devices automatically |
 | **Interactive legend** | Click a channel label → rename + change colour. Drag to reposition. |
+| **Windows and MacOS Compatability** | This code works in MacOS and Windows Operating Systems|
 | **Start / Stop Recording** | Buffers all active channels and saves a timestamped CSV |
 | **Demo signal** | 3 synthetic channels (`sin(x)+sin(2x)+noise`, etc.) — no hardware needed |
 | **Neon dark theme** | Fully styled UI with neon cyan, pink, and green accents |
