@@ -18,8 +18,8 @@ import time
 import threading
 import queue as stdlib_queue
 import csv
-
 import numpy as np
+import scipy.signal
 import serial
 import serial.tools.list_ports
 import pyqtgraph as pg
@@ -271,11 +271,15 @@ btn_rec_stop.setEnabled(False)
 btn_demo = QtWidgets.QPushButton("Show Demo Signal")
 btn_demo.setStyleSheet(f"color:{NEON_GRN}; border:1px solid {NEON_GRN};")
 
+combo_filter = QtWidgets.QComboBox()
+combo_filter.addItems(["No Filter", "MA (10 pts)", "MA (50 pts)", "Low Pass", "High Pass", "Butterworth", "Kalman Filter"])
+combo_filter.setFixedWidth(140)
+
 lbl_buf  = QtWidgets.QLabel("Buffer: 0 rows")
 bar_buf  = QtWidgets.QProgressBar()
 bar_buf.setRange(0, 5000)
 bar_buf.setValue(0)
-bar_buf.setFixedWidth(140)
+bar_buf.setFixedWidth(130)
 bar_buf.setTextVisible(False)
 
 lbl_hint = QtWidgets.QLabel("  Click a legend label to rename / recolour")
@@ -284,9 +288,9 @@ lbl_hint.setStyleSheet(f"color:#3a4a5a; font-style:italic;")
 lbl_rec_state = QtWidgets.QLabel("")
 lbl_rec_state.setStyleSheet(f"color:{NEON_YLW}; font-weight:bold; letter-spacing:1px;")
 
-for w in [btn_rec_start, btn_rec_stop, btn_demo]:
+for w in [btn_rec_start, btn_rec_stop, btn_demo, combo_filter]:
     tb2.addWidget(w)
-tb2.addSpacing(20)
+tb2.addSpacing(16)
 tb2.addWidget(lbl_buf)
 tb2.addWidget(bar_buf)
 tb2.addSpacing(8)
@@ -555,10 +559,37 @@ def on_demo_toggle():
 btn_demo.clicked.connect(on_demo_toggle)
 
 # ---------------------------------------------------------------------------
+# Filter Data & Helpers
+# ---------------------------------------------------------------------------
+_nyquist = 500.0  # Assumes roughly 1000Hz sampling
+b_butter, a_butter = scipy.signal.butter(4, 30.0 / _nyquist, btype='low')
+b_low, a_low       = scipy.signal.butter(2, 5.0 / _nyquist, btype='low')
+b_high, a_high     = scipy.signal.butter(2, 10.0 / _nyquist, btype='high')
+
+def kalman_filter_1d(data):
+    n = len(data)
+    if n == 0: return data
+    xhat = np.zeros(n)
+    P = np.zeros(n)
+    xhat[0] = data[0]
+    P[0] = 1.0
+    R = 1.0
+    Q = 0.01
+    for k in range(1, n):
+        xhat_minus = xhat[k-1]
+        P_minus = P[k-1] + Q
+        K = P_minus / (P_minus + R)
+        xhat[k] = xhat_minus + K * (data[k] - xhat_minus)
+        P[k] = (1 - K) * P_minus
+    return xhat
+
+# ---------------------------------------------------------------------------
 # Update loop (~60 fps)
 # ---------------------------------------------------------------------------
 def update_loop():
     current_vals = [None] * NUM_CH
+    current_filter = combo_filter.currentText()
+    
     for idx in range(NUM_CH):
         last = None
         try:
@@ -570,7 +601,22 @@ def update_loop():
             ch_vals[idx][:-1] = ch_vals[idx][1:]
             ch_vals[idx][-1]  = last
             ch_ptrs[idx]     += 1
-            ch_curves[idx].setData(ch_vals[idx])
+            
+            disp_vals = ch_vals[idx]
+            if current_filter == "MA (10 pts)":
+                disp_vals = np.convolve(ch_vals[idx], np.ones(10)/10., mode='full')[:WINDOW_W]
+            elif current_filter == "MA (50 pts)":
+                disp_vals = np.convolve(ch_vals[idx], np.ones(50)/50., mode='full')[:WINDOW_W]
+            elif current_filter == "Low Pass":
+                disp_vals = scipy.signal.filtfilt(b_low, a_low, ch_vals[idx])
+            elif current_filter == "High Pass":
+                disp_vals = scipy.signal.filtfilt(b_high, a_high, ch_vals[idx])
+            elif current_filter == "Butterworth":
+                disp_vals = scipy.signal.filtfilt(b_butter, a_butter, ch_vals[idx])
+            elif current_filter == "Kalman Filter":
+                disp_vals = kalman_filter_1d(ch_vals[idx])
+                
+            ch_curves[idx].setData(disp_vals)
             ch_curves[idx].setPos(ch_ptrs[idx] - WINDOW_W, 0)
             current_vals[idx] = last
 
